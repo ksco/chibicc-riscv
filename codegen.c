@@ -70,7 +70,9 @@ static void gen_expr(Node *node) {
     pop("a1");
     printf("  sd a0,0(a1)\n");
     return;
-
+  case ND_FUNCALL:
+    printf("  call %s\n", node->funcname);
+    return;
   }
 
   gen_expr(node->rhs);
@@ -175,14 +177,16 @@ void codegen(Function *prog) {
 
   // Prologue
   printf("  addi sp,sp,-%d\n", prog->stack_size + 16);
-  printf("  sd s0,%d(sp)\n", prog->stack_size + 8);
+  printf("  sd ra,%d(sp)\n", prog->stack_size + 8);
+  printf("  sd s0,%d(sp)\n", prog->stack_size);
   printf("  addi s0,sp,%d\n", prog->stack_size);
 
   gen_stmt(prog->body);
   assert(depth == 0);
 
   printf(".L.return:\n");
-  printf("  ld s0,%d(sp)\n", prog->stack_size + 8);
+  printf("  ld ra,%d(sp)\n", prog->stack_size + 8);
+  printf("  ld s0,%d(sp)\n", prog->stack_size);
   printf("  addi sp,sp,%d\n", prog->stack_size + 16);
   printf("  ret\n");
 }
