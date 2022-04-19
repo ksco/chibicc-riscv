@@ -12,14 +12,14 @@ static int count(void) {
 }
 
 static void push(void) {
-  printf("  sd a0,0(sp)\n");
   printf("  addi sp,sp,-8\n");
+  printf("  sd a0,0(sp)\n");
   depth++;
 }
 
 static void pop(char *arg) {
-  printf("  addi sp,sp,8\n");
   printf("  ld %s,0(sp)\n", arg);
+  printf("  addi sp,sp,8\n");
   depth--;
 }
 
@@ -34,7 +34,7 @@ static int align_to(int n, int align) {
 static void gen_addr(Node *node) {
   switch (node->kind) {
   case ND_VAR:
-    printf("  addi a0,s0,%d\n", node->var->offset);
+    printf("  addi a0,s0,%d\n", node->var->offset - 8);
     return;
   case ND_DEREF:
     gen_expr(node->lhs);
@@ -197,6 +197,11 @@ void codegen(Function *prog) {
     printf("  sd ra,%d(sp)\n", fn->stack_size + 8);
     printf("  sd s0,%d(sp)\n", fn->stack_size);
     printf("  addi s0,sp,%d\n", fn->stack_size);
+
+    // Save passed-by-register arguments to the stack
+    int i = 0;
+    for (Obj *var = fn->params; var; var = var->next)
+      printf("  sd %s,%d(s0)\n", argreg[i++], var->offset - 8);
 
     // Emit code
     gen_stmt(fn->body);
