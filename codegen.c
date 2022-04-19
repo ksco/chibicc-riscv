@@ -2,6 +2,7 @@
 
 static int depth;
 static char *argreg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
+static Function *current_fn;
 
 static void gen_expr(Node *node);
 
@@ -161,7 +162,7 @@ static void gen_stmt(Node *node) {
     return;
   case ND_RETURN:
     gen_expr(node->lhs);
-    printf("  j .L.return\n");
+    printf("  j .L.return.%s\n", current_fn->name);
     return;
   case ND_EXPR_STMT:
     gen_expr(node->lhs);
@@ -173,32 +174,39 @@ static void gen_stmt(Node *node) {
 
 // Assign offsets to local variables.
 static void assign_lvar_offsets(Function *prog) {
-  int offset = 0;
-  for (Obj *var = prog->locals; var; var = var->next) {
-    var->offset = -offset;
-    offset += 8;
+  for (Function *fn = prog; fn; fn = fn->next) {
+    int offset = 0;
+    for (Obj *var = fn->locals; var; var = var->next) {
+      var->offset = -offset;
+      offset += 8;
+    }
+    fn->stack_size = align_to(offset, 16);
   }
-  prog->stack_size = align_to(offset, 16);
 }
 
 void codegen(Function *prog) {
   assign_lvar_offsets(prog);
 
-  printf("  .globl main\n");
-  printf("main:\n");
+  for (Function *fn = prog; fn; fn = fn->next) {
+    printf("  .globl %s\n", fn->name);
+    printf("%s:\n", fn->name);
+    current_fn = fn;
 
-  // Prologue
-  printf("  addi sp,sp,-%d\n", prog->stack_size + 16);
-  printf("  sd ra,%d(sp)\n", prog->stack_size + 8);
-  printf("  sd s0,%d(sp)\n", prog->stack_size);
-  printf("  addi s0,sp,%d\n", prog->stack_size);
+    // Prologue
+    printf("  addi sp,sp,-%d\n", fn->stack_size + 16);
+    printf("  sd ra,%d(sp)\n", fn->stack_size + 8);
+    printf("  sd s0,%d(sp)\n", fn->stack_size);
+    printf("  addi s0,sp,%d\n", fn->stack_size);
 
-  gen_stmt(prog->body);
-  assert(depth == 0);
+    // Emit code
+    gen_stmt(fn->body);
+    assert(depth == 0);
 
-  printf(".L.return:\n");
-  printf("  ld ra,%d(sp)\n", prog->stack_size + 8);
-  printf("  ld s0,%d(sp)\n", prog->stack_size);
-  printf("  addi sp,sp,%d\n", prog->stack_size + 16);
-  printf("  ret\n");
+    // Epilogue
+    printf(".L.return.%s:\n", fn->name);
+    printf("  ld ra,%d(sp)\n", fn->stack_size + 8);
+    printf("  ld s0,%d(sp)\n", fn->stack_size);
+    printf("  addi sp,sp,%d\n", fn->stack_size + 16);
+    printf("  ret\n");
+  }
 }
