@@ -64,13 +64,20 @@ static void load(Type *ty) {
     return;
   }
 
-  printf("  ld a0,0(a0)\n");
+  if (ty->size == 1)
+    printf("  lb a0,0(a0)\n");
+  else
+    printf("  ld a0,0(a0)\n");
 }
 
 // Store a0 to an address that the stack top is pointing to.
-static void store(void) {
+static void store(Type *ty) {
   pop("a1");
-  printf("  sd a0,0(a1)\n");
+
+  if (ty->size == 1)
+    printf("  sb a0,0(a1)\n");
+  else
+    printf("  sd a0,0(a1)\n");
 }
 
 // Generate code for a given node.
@@ -98,7 +105,7 @@ static void gen_expr(Node *node) {
     gen_addr(node->lhs);
     push();
     gen_expr(node->rhs);
-    store();
+    store(node->ty);
     return;
   case ND_FUNCALL: {
     int nargs = 0;
@@ -245,8 +252,12 @@ static void emit_text(Obj *prog) {
 
     // Save passed-by-register arguments to the stack
     int i = 0;
-    for (Obj *var = fn->params; var; var = var->next)
-      printf("  sd %s,%d(s0)\n", argreg[i++], var->offset - var->ty->size);
+    for (Obj *var = fn->params; var; var = var->next) {
+      if (var->ty->size == 1)
+        printf("  sb %s,%d(s0)\n", argreg[i++], var->offset - var->ty->size);
+      else
+        printf("  sd %s,%d(s0)\n", argreg[i++], var->offset - var->ty->size);
+    }
 
     // Emit code
     gen_stmt(fn->body);
