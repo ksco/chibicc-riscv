@@ -34,7 +34,7 @@ static int align_to(int n, int align) {
 static void gen_addr(Node *node) {
   switch (node->kind) {
   case ND_VAR:
-    printf("  addi a0,s0,%d\n", node->var->offset - 8);
+    printf("  addi a0,s0,%d\n", node->var->offset - node->var->ty->size);
     return;
   case ND_DEREF:
     gen_expr(node->lhs);
@@ -42,6 +42,27 @@ static void gen_addr(Node *node) {
   }
 
   error_tok(node->tok, "not an lvalue");
+}
+
+// Load a value from where a0 is pointing to.
+static void load(Type *ty) {
+  if (ty->kind == TY_ARRAY) {
+    // If it is an array, do not attempt to load a value to the
+    // register because in general we can't load an entire array to a
+    // register. As a result, the result of an evaluation of an array
+    // becomes not the array itself but the address of the array.
+    // This is where "array is automatically converted to a pointer to
+    // the first element of the array in C" occurs.
+    return;
+  }
+
+  printf("  ld a0,0(a0)\n");
+}
+
+// Store a0 to an address that the stack top is pointing to.
+static void store(void) {
+  pop("a1");
+  printf("  sd a0,0(a1)\n");
 }
 
 // Generate code for a given node.
@@ -56,11 +77,11 @@ static void gen_expr(Node *node) {
     return;
   case ND_VAR:
     gen_addr(node);
-    printf("  ld a0,0(a0)\n");
+    load(node->ty);
     return;
   case ND_DEREF:
     gen_expr(node->lhs);
-    printf("  ld a0,0(a0)\n");
+    load(node->ty);
     return;
   case ND_ADDR:
     gen_addr(node->lhs);
@@ -69,8 +90,7 @@ static void gen_expr(Node *node) {
     gen_addr(node->lhs);
     push();
     gen_expr(node->rhs);
-    pop("a1");
-    printf("  sd a0,0(a1)\n");
+    store();
     return;
   case ND_FUNCALL: {
     int nargs = 0;
@@ -178,7 +198,7 @@ static void assign_lvar_offsets(Function *prog) {
     int offset = 0;
     for (Obj *var = fn->locals; var; var = var->next) {
       var->offset = -offset;
-      offset += 8;
+      offset += var->ty->size;
     }
     fn->stack_size = align_to(offset, 16);
   }
@@ -201,7 +221,7 @@ void codegen(Function *prog) {
     // Save passed-by-register arguments to the stack
     int i = 0;
     for (Obj *var = fn->params; var; var = var->next)
-      printf("  sd %s,%d(s0)\n", argreg[i++], var->offset - 8);
+      printf("  sd %s,%d(s0)\n", argreg[i++], var->offset - var->ty->size);
 
     // Emit code
     gen_stmt(fn->body);
