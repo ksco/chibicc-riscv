@@ -92,6 +92,8 @@ static void store(Type *ty) {
 
 // Generate code for a given node.
 static void gen_expr(Node *node) {
+  println("  .loc 1 %d", node->tok->line_no);
+
   switch (node->kind) {
   case ND_NUM:
     println("  li a0,%d", node->val);
@@ -176,6 +178,7 @@ static void gen_expr(Node *node) {
 }
 
 static void gen_stmt(Node *node) {
+  println("  .loc 1 %d", node->tok->line_no);
   switch (node->kind) {
   case ND_IF: {
     int c = count();
