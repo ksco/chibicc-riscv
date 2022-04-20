@@ -1,17 +1,28 @@
 CFLAGS=-std=c11 -g -fno-common
+
+RISCV_GCC=riscv64-unknown-linux-gnu-gcc
+
 SRCS=$(wildcard *.c)
 OBJS=$(SRCS:.c=.o)
+
+TEST_SRCS=$(wildcard test/*.c)
+TESTS=$(TEST_SRCS:.c=.exe)
 
 chibicc: $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 $(OBJS): chibicc.h
 
-test: chibicc
-	./test.sh
-	./test-driver.sh
+test/%.exe: chibicc test/%.c
+	$(RISCV_GCC) -o- -E -P -C test/$*.c | ./chibicc -o test/$*.s -
+	$(RISCV_GCC) -static -o $@ test/$*.s -xc test/common
+
+test: $(TESTS)
+	for i in $^; do echo $$i; spike --isa rv64gc $$(which pk) ./$$i || exit 1; echo; done
+	test/driver.sh
 
 clean:
-	rm -f chibicc *.o *~ tmp*
+	rm -rf chibicc tmp* $(TESTS) test/*.s test/*.exe
+	find * -type f '(' -name '*~' -o -name '*.o' ')' -exec rm {} ';'
 
 .PHONY: test clean
