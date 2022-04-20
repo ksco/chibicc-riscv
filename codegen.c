@@ -7,20 +7,28 @@ static Obj *current_fn;
 static void gen_expr(Node *node);
 static void gen_stmt(Node *node);
 
+static void println(char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  vprintf(fmt, ap);
+  va_end(ap);
+  printf("\n");
+}
+
 static int count(void) {
   static int i = 1;
   return i++;
 }
 
 static void push(void) {
-  printf("  addi sp,sp,-8\n");
-  printf("  sd a0,0(sp)\n");
+  println("  addi sp,sp,-8");
+  println("  sd a0,0(sp)");
   depth++;
 }
 
 static void pop(char *arg) {
-  printf("  ld %s,0(sp)\n", arg);
-  printf("  addi sp,sp,8\n");
+  println("  ld %s,0(sp)", arg);
+  println("  addi sp,sp,8");
   depth--;
 }
 
@@ -37,11 +45,11 @@ static void gen_addr(Node *node) {
   case ND_VAR:
     if (node->var->is_local) {
       // Local variable
-      printf("  addi a0,s0,%d\n", node->var->offset - node->var->ty->size);
+      println("  addi a0,s0,%d", node->var->offset - node->var->ty->size);
     } else {
       // Global variable
-      printf("  lui a0,%%hi(%s)\n", node->var->name);
-      printf("  addi a0,a0,%%lo(%s)\n", node->var->name);
+      println("  lui a0,%%hi(%s)", node->var->name);
+      println("  addi a0,a0,%%lo(%s)", node->var->name);
     }
 
     return;
@@ -66,9 +74,9 @@ static void load(Type *ty) {
   }
 
   if (ty->size == 1)
-    printf("  lb a0,0(a0)\n");
+    println("  lb a0,0(a0)");
   else
-    printf("  ld a0,0(a0)\n");
+    println("  ld a0,0(a0)");
 }
 
 // Store a0 to an address that the stack top is pointing to.
@@ -76,20 +84,20 @@ static void store(Type *ty) {
   pop("a1");
 
   if (ty->size == 1)
-    printf("  sb a0,0(a1)\n");
+    println("  sb a0,0(a1)");
   else
-    printf("  sd a0,0(a1)\n");
+    println("  sd a0,0(a1)");
 }
 
 // Generate code for a given node.
 static void gen_expr(Node *node) {
   switch (node->kind) {
   case ND_NUM:
-    printf("  li a0,%d\n", node->val);
+    println("  li a0,%d", node->val);
     return;
   case ND_NEG:
     gen_expr(node->lhs);
-    printf("  neg a0,a0\n");
+    println("  neg a0,a0");
     return;
   case ND_VAR:
     gen_addr(node);
@@ -123,7 +131,7 @@ static void gen_expr(Node *node) {
     for (int i = nargs - 1; i >= 0; i--)
       pop(argreg[i]);
 
-    printf("  call %s\n", node->funcname);
+    println("  call %s", node->funcname);
     return;
   }
   }
@@ -135,31 +143,31 @@ static void gen_expr(Node *node) {
 
   switch (node->kind) {
   case ND_ADD:
-    printf("  add a0,a0,a1\n");
+    println("  add a0,a0,a1");
     return;
   case ND_SUB:
-    printf("  sub a0,a0,a1\n");
+    println("  sub a0,a0,a1");
     return;
   case ND_MUL:
-    printf("  mul a0,a0,a1\n");
+    println("  mul a0,a0,a1");
     return;
   case ND_DIV:
-    printf("  div a0,a0,a1\n");
+    println("  div a0,a0,a1");
     return;
   case ND_EQ:
-    printf("  sub a0,a0,a1\n");
-    printf("  seqz a0,a0\n");
+    println("  sub a0,a0,a1");
+    println("  seqz a0,a0");
     return;
   case ND_NE:
-    printf("  sub a0,a0,a1\n");
-    printf("  snez a0,a0\n");
+    println("  sub a0,a0,a1");
+    println("  snez a0,a0");
     return;
   case ND_LT:
-    printf("  slt a0,a0,a1\n");
+    println("  slt a0,a0,a1");
     return;
   case ND_LE:
-    printf("  sgt a0,a0,a1\n");
-    printf("  xori a0,a0,1\n");
+    println("  sgt a0,a0,a1");
+    println("  xori a0,a0,1");
     return;
   }
 
@@ -171,29 +179,29 @@ static void gen_stmt(Node *node) {
   case ND_IF: {
     int c = count();
     gen_expr(node->cond);
-    printf("  beqz a0,.L.else.%d\n", c);
+    println("  beqz a0,.L.else.%d", c);
     gen_stmt(node->then);
-    printf("  j .L.end.%d\n", c);
-    printf(".L.else.%d:\n", c);
+    println("  j .L.end.%d", c);
+    println(".L.else.%d:", c);
     if (node->els)
       gen_stmt(node->els);
-    printf(".L.end.%d:\n", c);
+    println(".L.end.%d:", c);
     return;
   }
   case ND_FOR: {
     int c = count();
     if (node->init)
       gen_stmt(node->init);
-    printf(".L.begin.%d:\n", c);
+    println(".L.begin.%d:", c);
     if (node->cond) {
       gen_expr(node->cond);
-      printf("  beqz a0,.L.end.%d\n", c);
+      println("  beqz a0,.L.end.%d", c);
     }
     gen_stmt(node->then);
     if (node->inc)
       gen_expr(node->inc);
-    printf("  j .L.begin.%d\n", c);
-    printf(".L.end.%d:\n", c);
+    println("  j .L.begin.%d", c);
+    println(".L.end.%d:", c);
     return;
   }
   case ND_BLOCK:
@@ -202,7 +210,7 @@ static void gen_stmt(Node *node) {
     return;
   case ND_RETURN:
     gen_expr(node->lhs);
-    printf("  j .L.return.%s\n", current_fn->name);
+    println("  j .L.return.%s", current_fn->name);
     return;
   case ND_EXPR_STMT:
     gen_expr(node->lhs);
@@ -232,15 +240,15 @@ static void emit_data(Obj *prog) {
     if (var->is_function)
       continue;
 
-    printf("  .data\n");
-    printf("  .globl %s\n", var->name);
-    printf("%s:\n", var->name);
+    println("  .data");
+    println("  .globl %s", var->name);
+    println("%s:", var->name);
 
     if (var->init_data) {
       for (int i = 0; i < var->ty->size; i++)
-        printf("  .byte %d\n", var->init_data[i]);
+        println("  .byte %d", var->init_data[i]);
     } else {
-      printf("  .zero %d\n", var->ty->size);
+      println("  .zero %d", var->ty->size);
     }
   }
 }
@@ -250,24 +258,24 @@ static void emit_text(Obj *prog) {
     if (!fn->is_function)
       continue;
 
-    printf("  .globl %s\n", fn->name);
-    printf("  .text\n");
-    printf("%s:\n", fn->name);
+    println("  .globl %s", fn->name);
+    println("  .text");
+    println("%s:", fn->name);
     current_fn = fn;
 
     // Prologue
-    printf("  addi sp,sp,-%d\n", fn->stack_size + 16);
-    printf("  sd ra,%d(sp)\n", fn->stack_size + 8);
-    printf("  sd s0,%d(sp)\n", fn->stack_size);
-    printf("  addi s0,sp,%d\n", fn->stack_size);
+    println("  addi sp,sp,-%d", fn->stack_size + 16);
+    println("  sd ra,%d(sp)", fn->stack_size + 8);
+    println("  sd s0,%d(sp)", fn->stack_size);
+    println("  addi s0,sp,%d", fn->stack_size);
 
     // Save passed-by-register arguments to the stack
     int i = 0;
     for (Obj *var = fn->params; var; var = var->next) {
       if (var->ty->size == 1)
-        printf("  sb %s,%d(s0)\n", argreg[i++], var->offset - var->ty->size);
+        println("  sb %s,%d(s0)", argreg[i++], var->offset - var->ty->size);
       else
-        printf("  sd %s,%d(s0)\n", argreg[i++], var->offset - var->ty->size);
+        println("  sd %s,%d(s0)", argreg[i++], var->offset - var->ty->size);
     }
 
     // Emit code
@@ -275,11 +283,11 @@ static void emit_text(Obj *prog) {
     assert(depth == 0);
 
     // Epilogue
-    printf(".L.return.%s:\n", fn->name);
-    printf("  ld ra,%d(sp)\n", fn->stack_size + 8);
-    printf("  ld s0,%d(sp)\n", fn->stack_size);
-    printf("  addi sp,sp,%d\n", fn->stack_size + 16);
-    printf("  ret\n");
+    println(".L.return.%s:", fn->name);
+    println("  ld ra,%d(sp)", fn->stack_size + 8);
+    println("  ld s0,%d(sp)", fn->stack_size);
+    println("  addi sp,sp,%d", fn->stack_size + 16);
+    println("  ret");
   }
 }
 
