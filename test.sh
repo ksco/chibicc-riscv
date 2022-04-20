@@ -13,7 +13,7 @@ assert() {
   expected="$1"
   input="$2"
 
-  echo "$input" | ./chibicc - > tmp.s || exit
+  echo "$input" | ./chibicc -o tmp.s - || exit
   riscv64-unknown-linux-gnu-gcc -static -o tmp tmp.s tmp2.o
   spike --isa rv64gc $(which pk) ./tmp
   actual="$?"

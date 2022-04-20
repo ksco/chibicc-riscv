@@ -1,5 +1,6 @@
 #include "chibicc.h"
 
+static FILE *output_file;
 static int depth;
 static char *argreg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
 static Obj *current_fn;
@@ -10,9 +11,9 @@ static void gen_stmt(Node *node);
 static void println(char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  vprintf(fmt, ap);
+  vfprintf(output_file, fmt, ap);
   va_end(ap);
-  printf("\n");
+  fprintf(output_file, "\n");
 }
 
 static int count(void) {
@@ -291,7 +292,9 @@ static void emit_text(Obj *prog) {
   }
 }
 
-void codegen(Obj *prog) {
+void codegen(Obj *prog, FILE *out) {
+  output_file = out;
+
   assign_lvar_offsets(prog);
   emit_data(prog);
   emit_text(prog);
