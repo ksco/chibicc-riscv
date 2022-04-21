@@ -149,6 +149,11 @@ static void cast(Type *from, Type *to) {
   if (to->kind == TY_VOID)
     return;
 
+  if (to->kind == TY_BOOL) {
+    println("  snez a0,a0");
+    return;
+  }
+
   int t1 = getTypeId(from);
   int t2 = getTypeId(to);
   if (cast_table[t1][t2])
