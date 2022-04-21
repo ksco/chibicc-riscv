@@ -84,6 +84,8 @@ static void load(Type *ty) {
 
   if (ty->size == 1)
     println("  lb a0,0(a0)");
+  else if (ty->size == 2)
+    println("  lh a0,0(a0)");
   else if (ty->size == 4)
     println("  lw a0,0(a0)");
   else
@@ -104,6 +106,8 @@ static void store(Type *ty) {
 
   if (ty->size == 1)
     println("  sb a0,0(a1)");
+  else if (ty->size == 2)
+    println("  sh a0,0(a1)");
   else if (ty->size == 4)
     println("  sw a0,0(a1)");
   else
@@ -287,6 +291,9 @@ static void store_gp(int r, int offset, int sz) {
   switch (sz) {
   case 1:
     println("  sb %s,%d(s0)", argreg[r], offset - sz);
+    return;
+  case 2:
+    println("  sh %s,%d(s0)", argreg[r], offset - sz);
     return;
   case 4:
     println("  sw %s,%d(s0)", argreg[r], offset - sz);
