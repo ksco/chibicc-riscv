@@ -82,6 +82,11 @@ static void load(Type *ty) {
     return;
   }
 
+  // When we load a char or a short value to a register, we always
+  // extend them to the size of int, so we can assume the lower half of
+  // a register always contains a valid value. The upper half of a
+  // register for char, short and int may contain garbage. When we load
+  // a long value to a register, it simply occupies the entire register.
   if (ty->size == 1)
     println("  lb a0,0(a0)");
   else if (ty->size == 2)
@@ -213,18 +218,20 @@ static void gen_expr(Node *node) {
   gen_expr(node->lhs);
   pop("a1");
 
+  char* suffix = node->lhs->ty->kind == TY_LONG || node->lhs->ty->base
+               ? "" : "w";
   switch (node->kind) {
   case ND_ADD:
-    println("  add a0,a0,a1");
+    println("  add%s a0,a0,a1", suffix);
     return;
   case ND_SUB:
-    println("  sub a0,a0,a1");
+    println("  sub%s a0,a0,a1", suffix);
     return;
   case ND_MUL:
-    println("  mul a0,a0,a1");
+    println("  mul%s a0,a0,a1", suffix);
     return;
   case ND_DIV:
-    println("  div a0,a0,a1");
+    println("  div%s a0,a0,a1", suffix);
     return;
   case ND_EQ:
     println("  sub a0,a0,a1");
