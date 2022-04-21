@@ -30,6 +30,8 @@ int main() {
 
   ASSERT(1, ({ char i; sizeof(++i); }));
 
+  ASSERT(1, ({ char i; sizeof(i++); }));
+
   printf("OK\n");
   return 0;
 }
