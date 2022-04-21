@@ -246,6 +246,9 @@ static void gen_expr(Node *node) {
   case ND_DIV:
     println("  div%s a0,a0,a1", suffix);
     return;
+  case ND_MOD:
+    println("  rem%s a0,a0,a1", suffix);
+    return;
   case ND_EQ:
     println("  sub a0,a0,a1");
     println("  seqz a0,a0");
