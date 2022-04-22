@@ -427,7 +427,11 @@ static void emit_data(Obj *prog) {
     if (var->is_function || !var->is_definition)
       continue;
 
-    println("  .globl %s", var->name);
+    if (var->is_static)
+      println("  .local %s", var->name);
+    else
+      println("  .globl %s", var->name);
+
     println("  .align %d", (int)log2(var->align));
 
     if (var->init_data) {
