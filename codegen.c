@@ -204,6 +204,14 @@ static void gen_expr(Node *node) {
     gen_expr(node->lhs);
     cast(node->lhs->ty, node->ty);
     return;
+  case ND_MEMZERO: {
+    int offset = node->var->offset;
+    for (int i = 0; i < node->var->ty->size; i++) {
+      offset -= sizeof(char);
+      println("  sb zero,%d(s0)", offset);
+    }
+    return;
+  }
   case ND_COND: {
     int c = count();
     gen_expr(node->cond);
