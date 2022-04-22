@@ -93,6 +93,7 @@ struct Obj {
   Obj *params;
   Node *body;
   Obj *locals;
+  Obj *va_area;
   int stack_size;
 };
 

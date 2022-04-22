@@ -2,7 +2,7 @@
 
 static FILE *output_file;
 static int depth;
-static char *argreg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
+static char *argreg[] = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
 static Obj *current_fn;
 
 static void gen_expr(Node *node);
@@ -528,8 +528,18 @@ static void emit_text(Obj *prog) {
 
     // Save passed-by-register arguments to the stack
     int i = 0;
-    for (Obj *var = fn->params; var; var = var->next)
-      store_gp(i++, var->offset, var->ty->size);
+    for (Obj *var = fn->params; var; var = var->next) {
+      // __va_area__
+      if (var->ty->kind == TY_ARRAY) {
+        int offset = var->offset - var->ty->size;
+        while (i < 8) {
+          offset += 8;
+          store_gp(i++, offset, 8);
+        }
+      } else {
+        store_gp(i++, var->offset, var->ty->size);
+      }
+    }
 
     // Emit code
     gen_stmt(fn->body);
