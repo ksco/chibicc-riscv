@@ -202,6 +202,17 @@ static void gen_expr(Node *node) {
     gen_expr(node->lhs);
     cast(node->lhs->ty, node->ty);
     return;
+  case ND_COND: {
+    int c = count();
+    gen_expr(node->cond);
+    println("  beqz a0,.L.else.%d", c);
+    gen_expr(node->then);
+    println("  j .L.end.%d", c);
+    println(".L.else.%d:", c);
+    gen_expr(node->els);
+    println(".L.end.%d:", c);
+    return;
+  }
   case ND_NOT:
     gen_expr(node->lhs);
     println("  seqz a0,a0");
