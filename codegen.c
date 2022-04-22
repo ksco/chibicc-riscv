@@ -268,7 +268,13 @@ static void gen_expr(Node *node) {
     for (int i = nargs - 1; i >= 0; i--)
       pop(argreg[i]);
 
-    println("  call %s", node->funcname);
+    if (depth % 2 == 0) {
+      println("  call %s", node->funcname);
+    } else {
+      println("  addi s0,s0,-8");
+      println("  call %s", node->funcname);
+      println("  addi s0,s0,8");
+    }
     return;
   }
   }
