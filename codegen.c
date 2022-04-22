@@ -329,6 +329,7 @@ static void gen_stmt(Node *node) {
       println("  beqz a0,%s", node->brk_label);
     }
     gen_stmt(node->then);
+    println("%s:", node->cont_label);
     if (node->inc)
       gen_expr(node->inc);
     println("  j .L.begin.%d", c);
