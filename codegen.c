@@ -299,6 +299,12 @@ static void gen_expr(Node *node) {
     println("  sgt a0,a0,a1");
     println("  xori a0,a0,1");
     return;
+  case ND_SHL:
+    println("  sll%s a0,a0,a1", suffix);
+    return;
+  case ND_SHR:
+    println("  sra%s a0,a0,a1", suffix);
+    return;
   }
 
   error_tok(node->tok, "invalid expression");

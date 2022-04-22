@@ -138,6 +138,8 @@ void add_type(Node *node) {
   case ND_LOGOR:
   case ND_LOGAND:
   case ND_BITNOT:
+  case ND_SHL:
+  case ND_SHR:
     node->ty = node->lhs->ty;
     return;
   case ND_VAR:
