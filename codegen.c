@@ -275,6 +275,20 @@ static void gen_expr(Node *node) {
       println("  call %s", node->funcname);
       println("  addi s0,s0,8");
     }
+
+    // It looks like the most significant 48 or 56 bits in a0 may
+    // contain garbage if a function return type is short or bool/char,
+    // respectively. We clear the upper bits here.
+    switch (node->ty->kind) {
+    case TY_BOOL:
+    case TY_CHAR:
+      println("  andi a0,a0,0xff");
+      return;
+    case TY_SHORT:
+      println("  slliw a0,a0,16");
+      println("  sraiw a0,a0,16");
+      return;
+    }
     return;
   }
   }
