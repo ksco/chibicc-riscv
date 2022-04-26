@@ -2,7 +2,6 @@
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
-#include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -228,6 +227,7 @@ struct Type {
   TypeKind kind;
   int size;           // sizeof() value
   int align;          // alignment
+  bool is_unsigned;   // unsigned or signed
 
   // Pointer-to or array-of type. We intentionally use the same member
   // to represent pointer/array duality in C.
@@ -274,6 +274,11 @@ extern Type *ty_char;
 extern Type *ty_short;
 extern Type *ty_int;
 extern Type *ty_long;
+
+extern Type *ty_uchar;
+extern Type *ty_ushort;
+extern Type *ty_uint;
+extern Type *ty_ulong;
 
 bool is_integer(Type *ty);
 Type *copy_type(Type *ty);

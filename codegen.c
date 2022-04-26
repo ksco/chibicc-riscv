@@ -82,17 +82,19 @@ static void load(Type *ty) {
     return;
   }
 
+  char *suffix = ty->is_unsigned ? "u" : "";
+
   // When we load a char or a short value to a register, we always
   // extend them to the size of int, so we can assume the lower half of
   // a register always contains a valid value. The upper half of a
   // register for char, short and int may contain garbage. When we load
   // a long value to a register, it simply occupies the entire register.
   if (ty->size == 1)
-    println("  lb a0,0(a0)");
+    println("  lb%s a0,0(a0)", suffix);
   else if (ty->size == 2)
-    println("  lh a0,0(a0)");
+    println("  lh%s a0,0(a0)", suffix);
   else if (ty->size == 4)
-    println("  lw a0,0(a0)");
+    println("  lw a0,0(a0)", suffix);
   else
     println("  ld a0,0(a0)");
 }
@@ -119,30 +121,38 @@ static void store(Type *ty) {
     println("  sd a0,0(a1)");
 }
 
-enum { I8, I16, I32, I64 };
+enum { I8, I16, I32, I64, U8, U16, U32, U64 };
 
 static int getTypeId(Type *ty) {
   switch (ty->kind) {
   case TY_CHAR:
-    return I8;
+    return ty->is_unsigned ? U8 : I8;
   case TY_SHORT:
-    return I16;
+    return ty->is_unsigned ? U16 : I16;
   case TY_INT:
-    return I32;
+    return ty->is_unsigned ? U32 : I32;
+  case TY_LONG:
+    return ty->is_unsigned ? U64 : I64;
   }
-  return I64;
+  return U64;
 }
 
 // The table for type casts
-static char i32i8[] = "  andi a0,a0,0xff";
+static char i32i8[] = "  slliw a0,a0,24\n  sraiw a0,a0,24";
+static char i32u8[] = "  andi a0,a0,0xff";
 static char i32i16[] = "  slliw a0,a0,16\n  sraiw a0,a0,16";
-static char i32i64[] = "  sext.w a0,a0";
+static char i32u16[] = "  slli a0,a0,48\n  srli a0,a0,48";
 
 static char *cast_table[][10] = {
-  {NULL,  NULL,   NULL, i32i64}, // i8
-  {i32i8, NULL,   NULL, i32i64}, // i16
-  {i32i8, i32i16, NULL, i32i64}, // i32
-  {i32i8, i32i16, NULL, NULL},   // i64
+  // i8   i16     i32   i64     u8     u16     u32   u64
+  {NULL,  NULL,   NULL, NULL, i32u8, i32u16, NULL, NULL}, // i8
+  {i32i8, NULL,   NULL, NULL, i32u8, i32u16, NULL, NULL}, // i16
+  {i32i8, i32i16, NULL, NULL, i32u8, i32u16, NULL, NULL}, // i32
+  {i32i8, i32i16, NULL, NULL,   i32u8, i32u16, NULL, NULL},   // i64
+  {i32i8, NULL,   NULL, NULL, NULL,  NULL,   NULL, NULL}, // u8
+  {i32i8, i32i16, NULL, NULL, i32u8, NULL,   NULL, NULL}, // u16
+  {i32i8, i32i16, NULL, NULL, i32u8, i32u16, NULL, NULL}, // u32
+  {i32i8, i32i16, NULL, NULL,   i32u8, i32u16, NULL, NULL},   // u64
 };
 
 static void cast(Type *from, Type *to) {
@@ -281,12 +291,23 @@ static void gen_expr(Node *node) {
     // respectively. We clear the upper bits here.
     switch (node->ty->kind) {
     case TY_BOOL:
-    case TY_CHAR:
       println("  andi a0,a0,0xff");
+    case TY_CHAR:
+      if (node->ty->is_unsigned) {
+        println("  andi a0,a0,0xff");
+      } else {
+        println("  slliw a0,a0,24");
+        println("  sraiw a0,a0,24");
+      }
       return;
     case TY_SHORT:
-      println("  slliw a0,a0,16");
-      println("  sraiw a0,a0,16");
+      if (node->ty->is_unsigned) {
+        println("  slli a0,a0,48");
+        println("  srli a0,a0,48");
+      } else {
+        println("  slliw a0,a0,16");
+        println("  sraiw a0,a0,16");
+      }
       return;
     }
     return;
@@ -311,10 +332,18 @@ static void gen_expr(Node *node) {
     println("  mul%s a0,a0,a1", suffix);
     return;
   case ND_DIV:
-    println("  div%s a0,a0,a1", suffix);
+    if (node->ty->is_unsigned) {
+      println("  divu%s a0,a0,a1", suffix);
+    } else {
+      println("  div%s a0,a0,a1", suffix);
+    }
     return;
   case ND_MOD:
-    println("  rem%s a0,a0,a1", suffix);
+    if (node->ty->is_unsigned) {
+      println("  remu%s a0,a0,a1", suffix);
+    } else {
+      println("  rem%s a0,a0,a1", suffix);
+    }
     return;
   case ND_BITAND:
     println("  and a0,a0,a1");
@@ -334,17 +363,29 @@ static void gen_expr(Node *node) {
     println("  snez a0,a0");
     return;
   case ND_LT:
-    println("  slt a0,a0,a1");
+    if (node->lhs->ty->is_unsigned) {
+      println("  sltu a0,a0,a1");
+    } else {
+      println("  slt a0,a0,a1");
+    }
     return;
   case ND_LE:
-    println("  sgt a0,a0,a1");
+    if (node->lhs->ty->is_unsigned) {
+      println("  sgtu a0,a0,a1");
+    } else {
+      println("  sgt a0,a0,a1");
+    }
     println("  xori a0,a0,1");
     return;
   case ND_SHL:
     println("  sll%s a0,a0,a1", suffix);
     return;
   case ND_SHR:
-    println("  sra%s a0,a0,a1", suffix);
+    if (node->lhs->ty->is_unsigned) {
+      println("  srl%s a0,a0,a1", suffix);
+    } else {
+      println("  sra%s a0,a0,a1", suffix);
+    }
     return;
   }
 
