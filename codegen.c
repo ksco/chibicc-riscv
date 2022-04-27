@@ -73,13 +73,22 @@ static void gen_addr(Node *node) {
 
 // Load a value from where a0 is pointing to.
 static void load(Type *ty) {
-  if (ty->kind == TY_ARRAY || ty->kind == TY_STRUCT || ty->kind == TY_UNION) {
+  switch (ty->kind) {
+  case TY_ARRAY:
+  case TY_STRUCT:
+  case TY_UNION:
     // If it is an array, do not attempt to load a value to the
     // register because in general we can't load an entire array to a
     // register. As a result, the result of an evaluation of an array
     // becomes not the array itself but the address of the array.
     // This is where "array is automatically converted to a pointer to
     // the first element of the array in C" occurs.
+    return;
+  case TY_FLOAT:
+    println("  flw fa0,0(a0)");
+    return;
+  case TY_DOUBLE:
+    println("  fld fa0,0(a0)");
     return;
   }
 
@@ -104,11 +113,19 @@ static void load(Type *ty) {
 static void store(Type *ty) {
   pop("a1");
 
-  if (ty->kind == TY_STRUCT || ty->kind == TY_UNION) {
+  switch (ty->kind) {
+  case TY_STRUCT:
+  case TY_UNION:
     for (int i = 0; i < ty->size; i++) {
       println("  lb a4,%d(a0)", i);
       println("  sb a4,%d(a1)", i);
     }
+    return;
+  case TY_FLOAT:
+    println("  fsw fa0,0(a1)");
+    return;
+  case TY_DOUBLE:
+    println("  fsd fa0,0(a1)");
     return;
   }
 
@@ -122,7 +139,7 @@ static void store(Type *ty) {
     println("  sd a0,0(a1)");
 }
 
-enum { I8, I16, I32, I64, U8, U16, U32, U64 };
+enum { I8, I16, I32, I64, U8, U16, U32, U64, F32, F64 };
 
 static int getTypeId(Type *ty) {
   switch (ty->kind) {
@@ -134,6 +151,10 @@ static int getTypeId(Type *ty) {
     return ty->is_unsigned ? U32 : I32;
   case TY_LONG:
     return ty->is_unsigned ? U64 : I64;
+  case TY_FLOAT:
+    return F32;
+  case TY_DOUBLE:
+    return F64;
   }
   return U64;
 }
@@ -144,16 +165,64 @@ static char i32u8[] = "  andi a0,a0,0xff";
 static char i32i16[] = "  slliw a0,a0,16\n  sraiw a0,a0,16";
 static char i32u16[] = "  slli a0,a0,48\n  srli a0,a0,48";
 
+static char i32f32[] = "  fcvt.s.w fa0,a0";
+static char i32f64[] = "  fcvt.d.w fa0,a0";
+
+static char u32f32[] = "  fcvt.s.wu fa0,a0";
+static char u32f64[] = "  fcvt.d.wu fa0,a0";
+
+static char i64f32[] = "  fcvt.s.l fa0,a0";
+static char i64f64[] = "  fcvt.d.l fa0,a0";
+
+static char u64f32[] = "  fcvt.s.lu fa0,a0";
+static char u64f64[] = "  fcvt.d.lu fa0,a0";
+
+static char f32i8[] = "  fcvt.w.s a0,fa0,rtz\n  andi a0,a0,0xff";
+static char f32u8[] = "  fcvt.wu.s a0,fa0,rtz\n  andi a0,a0,0xff";
+static char f32i16[] =
+  "  fcvt.w.s a0,fa0,rtz\n"
+  "  slliw a0,a0,16\n"
+  "  sraiw a0,a0,16\n";
+static char f32u16[] =
+  "  fcvt.wu.s a0,fa0,rtz\n"
+  "  slli a0,a0,48\n"
+  "  srli a0,a0,48\n";
+static char f32i32[] = "  fcvt.w.s a0,fa0,rtz";
+static char f32u32[] = "  fcvt.wu.s a0,fa0,rtz";
+static char f32i64[] = "  fcvt.l.s a0,fa0,rtz";
+static char f32u64[] = "  fcvt.lu.s a0,fa0,rtz";
+static char f32f64[] = "  fcvt.d.s fa0,fa0";
+
+static char f64i8[] = "  fcvt.w.d a0,fa0,rtz\n  andi a0,a0,0xff";
+static char f64u8[] = "  fcvt.wu.d a0,fa0,rtz\n  andi a0,a0,0xff";
+static char f64i16[] =
+  "  fcvt.w.d a0,fa0,rtz\n"
+  "  slliw a0,a0,16\n"
+  "  sraiw a0,a0,16\n";
+static char f64u16[] =
+  "  fcvt.wu.d a0,fa0,rtz\n"
+  "  slli a0,a0,48\n"
+  "  srli a0,a0,48\n";
+static char f64i32[] = "  fcvt.w.d a0,fa0,rtz";
+static char f64u32[] = "  fcvt.wu.d a0,fa0,rtz";
+static char f64f32[] = "  fcvt.s.d fa0,fa0";
+static char f64i64[] = "  fcvt.l.d a0,fa0,rtz";
+static char f64u64[] = "  fcvt.lu.d a0,fa0,rtz";
+
 static char *cast_table[][10] = {
-  // i8   i16     i32   i64     u8     u16     u32   u64
-  {NULL,  NULL,   NULL, NULL, i32u8, i32u16, NULL, NULL}, // i8
-  {i32i8, NULL,   NULL, NULL, i32u8, i32u16, NULL, NULL}, // i16
-  {i32i8, i32i16, NULL, NULL, i32u8, i32u16, NULL, NULL}, // i32
-  {i32i8, i32i16, NULL, NULL,   i32u8, i32u16, NULL, NULL},   // i64
-  {i32i8, NULL,   NULL, NULL, NULL,  NULL,   NULL, NULL}, // u8
-  {i32i8, i32i16, NULL, NULL, i32u8, NULL,   NULL, NULL}, // u16
-  {i32i8, i32i16, NULL, NULL, i32u8, i32u16, NULL, NULL}, // u32
-  {i32i8, i32i16, NULL, NULL,   i32u8, i32u16, NULL, NULL},   // u64
+  // i8   i16     i32     i64     u8     u16     u32     u64     f32     f64
+  {NULL,  NULL,   NULL,   NULL, i32u8, i32u16, NULL,   NULL, i32f32, i32f64}, // i8
+  {i32i8, NULL,   NULL,   NULL, i32u8, i32u16, NULL,   NULL, i32f32, i32f64}, // i16
+  {i32i8, i32i16, NULL,   NULL, i32u8, i32u16, NULL,   NULL, i32f32, i32f64}, // i32
+  {i32i8, i32i16, NULL,   NULL, i32u8, i32u16, NULL,   NULL, i64f32, i64f64}, // i64
+
+  {i32i8, NULL,   NULL,   NULL, NULL,  NULL,   NULL,   NULL, i32f32, i32f64}, // u8
+  {i32i8, i32i16, NULL,   NULL, i32u8, NULL,   NULL,   NULL, i32f32, i32f64}, // u16
+  {i32i8, i32i16, NULL,   NULL, i32u8, i32u16, NULL,   NULL, u32f32, u32f64}, // u32
+  {i32i8, i32i16, NULL,   NULL, i32u8, i32u16, NULL,   NULL, u64f32, u64f64}, // u64
+
+  {f32i8, f32i16, f32i32, f32i64, f32u8, f32u16, f32u32, f32u64, NULL,   f32f64}, // f32
+  {f64i8, f64i16, f64i32, f64i64, f64u8, f64u16, f64u32, f64u64, f64f32, NULL},   // f64
 };
 
 static void cast(Type *from, Type *to) {
@@ -185,12 +254,12 @@ static void gen_expr(Node *node) {
     case TY_FLOAT:
       u.f32 = node->fval;
       println("  li a0,%u  # float %f", u.u32, node->fval);
-      println("  fmv.w.x f0,a0");
+      println("  fmv.w.x fa0,a0");
       return;
     case TY_DOUBLE:
       u.f64 = node->fval;
       println("  li a0,%lu  # float %f", u.u64, node->fval);
-      println("  fmv.d.x f0,a0");
+      println("  fmv.d.x fa0,a0");
       return;
     }
 
