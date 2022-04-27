@@ -46,7 +46,8 @@ static void gen_addr(Node *node) {
   case ND_VAR:
     if (node->var->is_local) {
       // Local variable
-      println("  addi a0,s0,%d", node->var->offset - node->var->ty->size);
+      println("  li t1,%d", node->var->offset - node->var->ty->size);
+      println("  add a0,s0,t1");
     } else {
       // Global variable
       println("  lui a0,%%hi(%s)", node->var->name);
@@ -218,7 +219,9 @@ static void gen_expr(Node *node) {
     int offset = node->var->offset;
     for (int i = 0; i < node->var->ty->size; i++) {
       offset -= sizeof(char);
-      println("  sb zero,%d(s0)", offset);
+      println("  li t1,%d", offset);
+      println("  add t1,t1,s0");
+      println("  sb zero,0(t1)", offset);
     }
     return;
   }
@@ -530,18 +533,20 @@ static void emit_data(Obj *prog) {
 }
 
 static void store_gp(int r, int offset, int sz) {
+  println("  li t1,%d", offset - sz);
+  println("  add t1,t1,s0");
   switch (sz) {
   case 1:
-    println("  sb %s,%d(s0)", argreg[r], offset - sz);
+    println("  sb %s,0(t1)", argreg[r]);
     return;
   case 2:
-    println("  sh %s,%d(s0)", argreg[r], offset - sz);
+    println("  sh %s,0(t1)", argreg[r]);
     return;
   case 4:
-    println("  sw %s,%d(s0)", argreg[r], offset - sz);
+    println("  sw %s,0(t1)", argreg[r]);
     return;
   case 8:
-    println("  sd %s,%d(s0)", argreg[r], offset - sz);
+    println("  sd %s,0(t1)", argreg[r]);
     return;
   }
   unreachable();
@@ -562,10 +567,11 @@ static void emit_text(Obj *prog) {
     current_fn = fn;
 
     // Prologue
-    println("  addi sp,sp,-%d", fn->stack_size + 16);
-    println("  sd ra,%d(sp)", fn->stack_size + 8);
-    println("  sd s0,%d(sp)", fn->stack_size);
-    println("  addi s0,sp,%d", fn->stack_size);
+    println("  sd ra,-8(sp)");
+    println("  sd s0,-16(sp)");
+    println("  addi s0,sp,-16");
+    println("  li t1,-%d", fn->stack_size + 16);
+    println("  add sp,sp,t1");
 
     // Save passed-by-register arguments to the stack
     int i = 0;
@@ -588,9 +594,10 @@ static void emit_text(Obj *prog) {
 
     // Epilogue
     println(".L.return.%s:", fn->name);
-    println("  ld ra,%d(sp)", fn->stack_size + 8);
-    println("  ld s0,%d(sp)", fn->stack_size);
-    println("  addi sp,sp,%d", fn->stack_size + 16);
+    println("  li t1,%d", fn->stack_size + 16);
+    println("  add sp,sp,t1");
+    println("  ld ra,-8(sp)");
+    println("  ld s0,-16(sp)");
     println("  ret");
   }
 }
