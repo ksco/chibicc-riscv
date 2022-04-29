@@ -280,6 +280,16 @@ static void gen_expr(Node *node) {
   }
   case ND_NEG:
     gen_expr(node->lhs);
+
+    switch (node->ty->kind) {
+    case TY_FLOAT:
+      println("  fneg.s fa0,fa0");
+      return;
+    case TY_DOUBLE:
+      println("  fneg.d fa0,fa0");
+      return;
+    }
+
     println("  neg a0,a0");
     return;
   case ND_VAR:
@@ -423,6 +433,18 @@ static void gen_expr(Node *node) {
     char *suffix = (node->lhs->ty->kind == TY_FLOAT) ? "s" : "d";
 
     switch (node->kind) {
+    case ND_ADD:
+      println("  fadd.%s fa0,fa0,fa1", suffix);
+      return;
+    case ND_SUB:
+      println("  fsub.%s fa0,fa0,fa1", suffix);
+      return;
+    case ND_MUL:
+      println("  fmul.%s fa0,fa0,fa1", suffix);
+      return;
+    case ND_DIV:
+      println("  fdiv.%s fa0,fa0,fa1", suffix);
+      return;
     case ND_EQ:
       println("  feq.%s a0,fa0,fa1", suffix);
       return;
