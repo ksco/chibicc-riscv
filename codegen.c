@@ -33,6 +33,18 @@ static void pop(char *arg) {
   depth--;
 }
 
+static void pushf(void) {
+  println("  addi sp,sp,-8");
+  println("  fsd fa0,0(sp)");
+  depth++;
+}
+
+static void popf(char *arg) {
+  println("  fld %s,0(sp)", arg);
+  println("  addi sp,sp,8");
+  depth--;
+}
+
 // Round up `n` to the nearest multiple of `align`. For instance,
 // align_to(5, 8) returns 8 and align_to(11, 8) returns 16.
 int align_to(int n, int align) {
@@ -400,6 +412,33 @@ static void gen_expr(Node *node) {
     }
     return;
   }
+  }
+
+  if (is_flonum(node->lhs->ty)) {
+    gen_expr(node->rhs);
+    pushf();
+    gen_expr(node->lhs);
+    popf("fa1");
+
+    char *suffix = (node->lhs->ty->kind == TY_FLOAT) ? "s" : "d";
+
+    switch (node->kind) {
+    case ND_EQ:
+      println("  feq.%s a0,fa0,fa1", suffix);
+      return;
+    case ND_NE:
+      println("  feq.%s a0,fa0,fa1", suffix);
+      println("  seqz a0,a0");
+      return;
+    case ND_LT:
+      println("  flt.%s a0,fa0,fa1", suffix);
+      return;
+    case ND_LE:
+      println("  fle.%s a0,fa0,fa1", suffix);
+      return;
+    }
+
+    error_tok(node->tok, "invalid expression");
   }
 
   gen_expr(node->rhs);
