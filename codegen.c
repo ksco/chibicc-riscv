@@ -40,6 +40,7 @@ static void pushf(void) {
 
 static void popf(int reg) {
   println("  fld fa%d,0(sp)", reg);
+  println("  ld a%d,0(sp)", reg);
   println("  addi sp,sp,8");
   depth--;
 }
@@ -411,12 +412,12 @@ static void gen_expr(Node *node) {
   case ND_FUNCALL: {
     push_args(node->args);
 
-    int gp = 0, fp = 0;
+    int i = 0;
     for (Node *arg = node->args; arg; arg = arg->next) {
       if (is_flonum(arg->ty))
-        popf(fp++);
+        popf(i++);
       else
-        pop(gp++);
+        pop(i++);
     }
 
     if (depth % 2 == 0) {
@@ -768,19 +769,19 @@ static void emit_text(Obj *prog) {
     println("  add sp,sp,t1");
 
     // Save passed-by-register arguments to the stack
-    int gp = 0, fp = 0;
+    int i = 0;
     for (Obj *var = fn->params; var; var = var->next) {
       // __va_area__
       if (var->ty->kind == TY_ARRAY) {
         int offset = var->offset - var->ty->size;
-        while (gp < 8) {
+        while (i < 8) {
           offset += 8;
-          store_gp(gp++, offset, 8);
+          store_gp(i++, offset, 8);
         }
       } else if (is_flonum(var->ty)) {
-        store_fp(fp++, var->offset, var->ty->size);
+        store_fp(i++, var->offset, var->ty->size);
       } else {
-        store_gp(gp++, var->offset, var->ty->size);
+        store_gp(i++, var->offset, var->ty->size);
       }
     }
 
