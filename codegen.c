@@ -192,6 +192,8 @@ static char i32u8[] = "  andi a0,a0,0xff";
 static char i32i16[] = "  slliw a0,a0,16\n  sraiw a0,a0,16";
 static char i32u16[] = "  slli a0,a0,48\n  srli a0,a0,48";
 
+static char u64i32[] = "  slli a0,a0,32\n  srli a0,a0,32";
+
 static char i32f32[] = "  fcvt.s.w fa0,a0";
 static char i32f64[] = "  fcvt.d.w fa0,a0";
 
@@ -241,12 +243,12 @@ static char *cast_table[][10] = {
   {NULL,  NULL,   NULL,   NULL, i32u8, i32u16, NULL,   NULL, i32f32, i32f64}, // i8
   {i32i8, NULL,   NULL,   NULL, i32u8, i32u16, NULL,   NULL, i32f32, i32f64}, // i16
   {i32i8, i32i16, NULL,   NULL, i32u8, i32u16, NULL,   NULL, i32f32, i32f64}, // i32
-  {i32i8, i32i16, NULL,   NULL, i32u8, i32u16, NULL,   NULL, i64f32, i64f64}, // i64
+  {i32i8, i32i16, u64i32, NULL, i32u8, i32u16, u64i32, NULL, i64f32, i64f64}, // i64
 
   {i32i8, NULL,   NULL,   NULL, NULL,  NULL,   NULL,   NULL, i32f32, i32f64}, // u8
   {i32i8, i32i16, NULL,   NULL, i32u8, NULL,   NULL,   NULL, i32f32, i32f64}, // u16
   {i32i8, i32i16, NULL,   NULL, i32u8, i32u16, NULL,   NULL, u32f32, u32f64}, // u32
-  {i32i8, i32i16, NULL,   NULL, i32u8, i32u16, NULL,   NULL, u64f32, u64f64}, // u64
+  {i32i8, i32i16, u64i32, NULL, i32u8, i32u16, u64i32, NULL, u64f32, u64f64}, // u64
 
   {f32i8, f32i16, f32i32, f32i64, f32u8, f32u16, f32u32, f32u64, NULL,   f32f64}, // f32
   {f64i8, f64i16, f64i32, f64i64, f64u8, f64u16, f64u32, f64u64, f64f32, NULL},   // f64
