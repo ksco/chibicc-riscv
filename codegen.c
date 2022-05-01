@@ -2,7 +2,6 @@
 
 static FILE *output_file;
 static int depth;
-static char *argreg[] = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
 static Obj *current_fn;
 
 static void gen_expr(Node *node);
@@ -27,8 +26,8 @@ static void push(void) {
   depth++;
 }
 
-static void pop(char *arg) {
-  println("  ld %s,0(sp)", arg);
+static void pop(int reg) {
+  println("  ld a%d,0(sp)", reg);
   println("  addi sp,sp,8");
   depth--;
 }
@@ -123,7 +122,7 @@ static void load(Type *ty) {
 
 // Store a0 to an address that the stack top is pointing to.
 static void store(Type *ty) {
-  pop("a1");
+  pop(1);
 
   switch (ty->kind) {
   case TY_STRUCT:
@@ -417,7 +416,7 @@ static void gen_expr(Node *node) {
       if (is_flonum(arg->ty))
         popf(fp++);
       else
-        pop(argreg[gp++]);
+        pop(gp++);
     }
 
     if (depth % 2 == 0) {
@@ -498,7 +497,7 @@ static void gen_expr(Node *node) {
   gen_expr(node->rhs);
   push();
   gen_expr(node->lhs);
-  pop("a1");
+  pop(1);
 
   char* suffix = node->lhs->ty->kind == TY_LONG || node->lhs->ty->base
                ? "" : "w";
@@ -713,21 +712,35 @@ static void emit_data(Obj *prog) {
   }
 }
 
+static void store_fp(int r, int offset, int sz) {
+  println("  li t1,%d", offset - sz);
+  println("  add t1,t1,s0");
+  switch (sz) {
+  case 4:
+    println("  fsw fa%d, 0(t1)", r, offset);
+    return;
+  case 8:
+    println("  fsd fa%d, 0(t1)", r, offset);
+    return;
+  }
+  unreachable();
+}
+
 static void store_gp(int r, int offset, int sz) {
   println("  li t1,%d", offset - sz);
   println("  add t1,t1,s0");
   switch (sz) {
   case 1:
-    println("  sb %s,0(t1)", argreg[r]);
+    println("  sb a%d,0(t1)", r);
     return;
   case 2:
-    println("  sh %s,0(t1)", argreg[r]);
+    println("  sh a%d,0(t1)", r);
     return;
   case 4:
-    println("  sw %s,0(t1)", argreg[r]);
+    println("  sw a%d,0(t1)", r);
     return;
   case 8:
-    println("  sd %s,0(t1)", argreg[r]);
+    println("  sd a%d,0(t1)", r);
     return;
   }
   unreachable();
@@ -755,17 +768,19 @@ static void emit_text(Obj *prog) {
     println("  add sp,sp,t1");
 
     // Save passed-by-register arguments to the stack
-    int i = 0;
+    int gp = 0, fp = 0;
     for (Obj *var = fn->params; var; var = var->next) {
       // __va_area__
       if (var->ty->kind == TY_ARRAY) {
         int offset = var->offset - var->ty->size;
-        while (i < 8) {
+        while (gp < 8) {
           offset += 8;
-          store_gp(i++, offset, 8);
+          store_gp(gp++, offset, 8);
         }
+      } else if (is_flonum(var->ty)) {
+        store_fp(fp++, var->offset, var->ty->size);
       } else {
-        store_gp(i++, var->offset, var->ty->size);
+        store_gp(gp++, var->offset, var->ty->size);
       }
     }
 
