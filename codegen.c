@@ -56,16 +56,25 @@ int align_to(int n, int align) {
 static void gen_addr(Node *node) {
   switch (node->kind) {
   case ND_VAR:
+    // Local variable
     if (node->var->is_local) {
-      // Local variable
       println("  li t1,%d", node->var->offset - node->var->ty->size);
       println("  add a0,s0,t1");
-    } else {
-      // Global variable
-      println("  lui a0,%%hi(%s)", node->var->name);
-      println("  addi a0,a0,%%lo(%s)", node->var->name);
+      return;
     }
 
+    // Function
+    if (node->ty->kind == TY_FUNC) {
+      int c = count();
+      println(".L.b1_%d:", c);
+      println("  auipc a0,%%pcrel_hi(%s)", node->var->name);
+      println("  addi a0,a0,%%pcrel_lo(.L.b1_%d)", c);
+      return;
+    }
+
+    // Global variable
+    println("  lui a0,%%hi(%s)", node->var->name);
+    println("  addi a0,a0,%%lo(%s)", node->var->name);
     return;
   case ND_DEREF:
     gen_expr(node->lhs);
@@ -89,6 +98,7 @@ static void load(Type *ty) {
   case TY_ARRAY:
   case TY_STRUCT:
   case TY_UNION:
+  case TY_FUNC:
     // If it is an array, do not attempt to load a value to the
     // register because in general we can't load an entire array to a
     // register. As a result, the result of an evaluation of an array
@@ -413,6 +423,8 @@ static void gen_expr(Node *node) {
   }
   case ND_FUNCALL: {
     push_args(node->args);
+    gen_expr(node->lhs);
+    println("  mv t2,a0");
 
     int i = 0;
     for (Node *arg = node->args; arg; arg = arg->next) {
@@ -423,10 +435,10 @@ static void gen_expr(Node *node) {
     }
 
     if (depth % 2 == 0) {
-      println("  call %s", node->funcname);
+      println("  jalr t2");
     } else {
       println("  addi s0,s0,-8");
-      println("  call %s", node->funcname);
+      println("  jalr t2");
       println("  addi s0,s0,8");
     }
 

@@ -76,8 +76,6 @@ unsigned short ushort_fn();
 char schar_fn();
 short sshort_fn();
 
-int add_all(int n, ...);
-
 typedef void* va_list;
 
 int add_all(int n, ...);
@@ -98,6 +96,10 @@ float add_float3(float x, float y, float z) {
 
 double add_double3(double x, double y, double z) {
   return x + y + z;
+}
+
+int (*fnptr(int (*fn)(int n, ...)))(int, ...) {
+  return fn;
 }
 
 int main() {
@@ -169,6 +171,11 @@ int main() {
   ASSERT(0, ({ char buf[100]; sprintf(buf, "%.1f", (float)3.5); strcmp(buf, "3.5"); }));
 
   ASSERT(0, ({ char buf[100]; fmt(buf, "%.1f", (float)3.5); strcmp(buf, "3.5"); }));
+
+  ASSERT(5, (add2)(2,3));
+  ASSERT(5, (&add2)(2,3));
+  ASSERT(7, ({ int (*fn)(int,int) = add2; fn(2,5); }));
+  ASSERT(6, fnptr(add_all)(3, 1, 2, 3));
 
   printf("OK\n");
   return 0;

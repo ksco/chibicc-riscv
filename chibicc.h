@@ -184,7 +184,6 @@ struct Node {
   Member *member;
 
   // Function call
-  char *funcname;
   Type *func_ty;
   Node *args;
 
