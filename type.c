@@ -223,5 +223,6 @@ void add_type(Node *node) {
     }
     error_tok(node->tok, "statement expression returning void is not supported");
     return;
+  default: break;
   }
 }

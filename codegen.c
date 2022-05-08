@@ -87,6 +87,7 @@ static void gen_addr(Node *node) {
     gen_addr(node->lhs);
     println("  addi a0,a0,%d", node->member->offset);
     return;
+  default: break;
   }
 
   error_tok(node->tok, "not an lvalue");
@@ -112,6 +113,7 @@ static void load(Type *ty) {
   case TY_DOUBLE:
     println("  fld fa0,0(a0)");
     return;
+  default: break;
   }
 
   char *suffix = ty->is_unsigned ? "u" : "";
@@ -149,6 +151,7 @@ static void store(Type *ty) {
   case TY_DOUBLE:
     println("  fsd fa0,0(a1)");
     return;
+  default: break;
   }
 
   if (ty->size == 1)
@@ -171,6 +174,7 @@ static void cmp_zero(Type *ty) {
       println("  fmv.d.x fa1,zero");
       println("  feq.d a0,fa0,fa1");
       return;
+    default: break;
     }
 
     println("  seqz a0,a0");
@@ -192,8 +196,9 @@ static int getTypeId(Type *ty) {
     return F32;
   case TY_DOUBLE:
     return F64;
+  default:
+    return U64;;
   }
-  return U64;
 }
 
 // The table for type casts
@@ -312,6 +317,7 @@ static void gen_expr(Node *node) {
       println("  li a0,%lu  # float %f", u.u64, node->fval);
       println("  fmv.d.x fa0,a0");
       return;
+    default: break;
     }
 
     println("  li a0,%ld", node->val);
@@ -327,6 +333,7 @@ static void gen_expr(Node *node) {
     case TY_DOUBLE:
       println("  fneg.d fa0,fa0");
       return;
+    default: break;
     }
 
     println("  neg a0,a0");
@@ -465,8 +472,10 @@ static void gen_expr(Node *node) {
         println("  sraiw a0,a0,16");
       }
       return;
+    default: break;
     }
     return;
+  default: break;
   }
   }
 
@@ -504,6 +513,7 @@ static void gen_expr(Node *node) {
     case ND_LE:
       println("  fle.%s a0,fa0,fa1", suffix);
       return;
+    default: break;
     }
 
     error_tok(node->tok, "invalid expression");
@@ -582,6 +592,7 @@ static void gen_expr(Node *node) {
       println("  sra%s a0,a0,a1", suffix);
     }
     return;
+  default: break;
   }
 
   error_tok(node->tok, "invalid expression");
@@ -670,6 +681,7 @@ static void gen_stmt(Node *node) {
   case ND_EXPR_STMT:
     gen_expr(node->lhs);
     return;
+  default: break;
   }
 
   error_tok(node->tok, "invalid statement");

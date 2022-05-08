@@ -1530,9 +1530,11 @@ static int64_t eval2(Node *node, char **label) {
     return 0;
   case ND_NUM:
     return node->val;
+  default: break;
   }
 
   error_tok(node->tok, "not a compile-time constant");
+  return 0;
 }
 
 static int64_t eval_rval(Node *node, char **label) {
@@ -1546,9 +1548,11 @@ static int64_t eval_rval(Node *node, char **label) {
     return eval2(node->lhs, label);
   case ND_MEMBER:
     return eval_rval(node->lhs, label) + node->member->offset;
+  default: break;
   }
 
   error_tok(node->tok, "invalid initializer");
+  return 0;
 }
 
 static int64_t const_expr(Token **rest, Token *tok) {
@@ -1586,9 +1590,11 @@ static double eval_double(Node *node) {
     return eval(node->lhs);
   case ND_NUM:
     return node->fval;
+  default: break;
   }
 
   error_tok(node->tok, "not a compile-time constant");
+  return 0;
 }
 
 // Convert `A op= B` to `tmp = &A, *tmp = *tmp op B`
@@ -1860,6 +1866,7 @@ static Node *new_sub(Node *lhs, Node *rhs, Token *tok) {
   }
 
   error_tok(tok, "invalid operands");
+  return NULL;
 }
 
 // add = mul ("+" mul | "-" mul)*
@@ -2094,6 +2101,7 @@ static Member *get_struct_member(Type *ty, Token *tok) {
         !strncmp(mem->name->loc, tok->loc, tok->len))
       return mem;
   error_tok(tok, "no such member");
+  return NULL;
 }
 
 static Node *struct_ref(Node *lhs, Token *tok) {
@@ -2329,6 +2337,7 @@ static Node *primary(Token **rest, Token *tok) {
   }
 
   error_tok(tok, "expected an expression");
+  return NULL;
 }
 
 static Token *parse_typedef(Token *tok, Type *basety) {
