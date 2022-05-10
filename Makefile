@@ -14,8 +14,8 @@ chibicc: $(OBJS)
 $(OBJS): chibicc.h
 
 test/%.exe: chibicc test/%.c
-	$(RISCV_GCC) -o- -E -P -C test/$*.c | ./chibicc -o test/$*.s -
-	$(RISCV_GCC) -static -o $@ test/$*.s -xc test/common
+	$(RISCV_GCC) -o- -E -P -C test/$*.c | ./chibicc -o test/$*.o -
+	$(RISCV_GCC) -static -o $@ test/$*.o -xc test/common
 
 test: $(TESTS)
 	for i in $^; do echo $$i; spike --isa rv64gc $$(which pk) ./$$i || exit 1; echo; done
