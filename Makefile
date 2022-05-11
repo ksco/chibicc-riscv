@@ -13,6 +13,10 @@ chibicc: $(OBJS)
 
 $(OBJS): chibicc.h
 
+test/macro.exe: chibicc test/macro.c
+	./chibicc -o test/macro.o test/macro.c
+	$(RISCV_GCC) -static -o $@ test/macro.o -xc test/common
+
 test/%.exe: chibicc test/%.c
 	$(RISCV_GCC) -o- -E -P -C test/$*.c | ./chibicc -o test/$*.o -
 	$(RISCV_GCC) -static -o $@ test/$*.o -xc test/common
