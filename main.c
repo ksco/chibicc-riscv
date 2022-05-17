@@ -203,6 +203,12 @@ static void assemble(char *input, char *output) {
   run_subprocess(cmd);
 }
 
+// Returns true if a given file exists.
+bool file_exists(char *path) {
+  struct stat st;
+  return !stat(path, &st);
+}
+
 int main(int argc, char **argv) {
   atexit(cleanup);
   parse_args(argc, argv);

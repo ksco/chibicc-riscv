@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -344,5 +345,6 @@ int align_to(int n, int align);
 //
 // main.c
 //
+bool file_exists(char *path);
 
 extern char *base_file;
