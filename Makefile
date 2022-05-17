@@ -18,7 +18,7 @@ test/macro.exe: chibicc test/macro.c
 	$(RISCV_GCC) -static -o $@ test/macro.o -xc test/common
 
 test/%.exe: chibicc test/%.c
-	$(RISCV_GCC) -o- -E -P -C test/$*.c | ./chibicc -o test/$*.o -
+	./chibicc -o test/$*.o test/$*.c
 	$(RISCV_GCC) -static -o $@ test/$*.o -xc test/common
 
 test: $(TESTS)
