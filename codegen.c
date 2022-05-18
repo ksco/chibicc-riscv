@@ -1,5 +1,8 @@
 #include "chibicc.h"
 
+#define GP_MAX 8
+#define FP_MAX 8
+
 static FILE *output_file;
 static int depth;
 static Obj *current_fn;
@@ -40,7 +43,6 @@ static void pushf(void) {
 
 static void popf(int reg) {
   println("  fld fa%d,0(sp)", reg);
-  println("  ld a%d,0(sp)", reg);
   println("  addi sp,sp,8");
   depth--;
 }
@@ -284,16 +286,47 @@ static void cast(Type *from, Type *to) {
     println(cast_table[t1][t2]);
 }
 
-static void push_args(Node *args) {
-  if (args) {
-    push_args(args->next);
+static void push_args2(Node *args, bool first_pass) {
+  if (!args)
+    return;
 
-    gen_expr(args);
-    if (is_flonum(args->ty))
-      pushf();
-    else
-      push();
+  push_args2(args->next, first_pass);
+
+  if ((first_pass && !args->pass_by_stack) || (!first_pass && args->pass_by_stack))
+    return;
+
+  gen_expr(args);
+  if (is_flonum(args->ty))
+    pushf();
+  else
+    push();
+}
+
+static int push_args(Node *args) {
+  int stack = 0, gp = 0, fp = 0;
+
+  for (Node *arg = args; arg; arg = arg->next) {
+    if (is_flonum(arg->ty)) {
+      if (fp >= FP_MAX && gp > GP_MAX) {
+        arg->pass_by_stack = true;
+        stack++;
+      } else if (fp < FP_MAX) {
+        fp++;
+      } else {
+        gp++;
+      }
+    } else {
+      if (gp++ >= GP_MAX) {
+        arg->pass_by_stack = true;
+        stack++;
+      }
+    }
   }
+
+  push_args2(args, true);
+  push_args2(args, false);
+
+  return stack;
 }
 
 // Generate code for a given node.
@@ -429,24 +462,34 @@ static void gen_expr(Node *node) {
     return;
   }
   case ND_FUNCALL: {
-    push_args(node->args);
+    int stack_args = push_args(node->args);
     gen_expr(node->lhs);
     println("  mv t2,a0");
 
-    int i = 0;
+    int fp = 0, gp = 0;
+    Type* cur_param = node->func_ty->params;
     for (Node *arg = node->args; arg; arg = arg->next) {
-      if (is_flonum(arg->ty))
-        popf(i++);
-      else
-        pop(i++);
+      if (node->func_ty->is_variadic && cur_param == NULL) {
+        if (gp < GP_MAX) pop(gp++);
+        continue;
+      }
+      cur_param = cur_param->next;
+      if (is_flonum(arg->ty)) {
+        if (fp < FP_MAX) {
+          popf(fp++);
+        } else if (gp < GP_MAX) {
+          pop(gp++);
+        }
+      } else {
+        if (gp < GP_MAX) pop(gp++);
+      }
     }
 
-    if (depth % 2 == 0) {
-      println("  jalr t2");
-    } else {
-      println("  addi s0,s0,-8");
-      println("  jalr t2");
-      println("  addi s0,s0,8");
+    println("  jalr t2");
+
+    if (stack_args) {
+      depth -= stack_args;
+      println("  addi sp,sp,%d", stack_args * 8);
     }
 
     // It looks like the most significant 48 or 56 bits in a0 may
@@ -693,13 +736,43 @@ static void assign_lvar_offsets(Obj *prog) {
     if (!fn->is_function)
       continue;
 
-    int offset = 0;
-    for (Obj *var = fn->locals; var; var = var->next) {
-      offset = align_to(offset, var->align);
-      var->offset = -offset;
-      offset += var->ty->size;
+    int top = 16;
+    int bottom = 0;
+
+    int gp = 0, fp = 0;
+
+    // Assign offsets to pass-by-stack parameters.
+    for (Obj *var = fn->params; var; var = var->next) {
+      if (is_flonum(var->ty)) {
+        if (fp < FP_MAX) {
+          fp++;
+          continue;
+        } else if(gp < GP_MAX) {
+          gp++;
+          continue;
+        }
+      } else {
+        if (gp++ < GP_MAX)
+          continue;
+      }
+
+      top = align_to(top, 8);
+      var->offset = top + var->ty->size;
+      top += var->ty->size;
     }
-    fn->stack_size = align_to(offset, 16);
+
+
+    // Assign offsets to pass-by-register parameters and local variables.
+    for (Obj *var = fn->locals; var; var = var->next) {
+      if (var->offset)
+        continue;
+
+      bottom = align_to(bottom, var->align);
+      var->offset = -bottom;
+      bottom += var->ty->size;
+    }
+
+    fn->stack_size = align_to(bottom, 16);
   }
 }
 
@@ -795,19 +868,27 @@ static void emit_text(Obj *prog) {
     println("  add sp,sp,t1");
 
     // Save passed-by-register arguments to the stack
-    int i = 0;
+    int fp = 0, gp = 0;
     for (Obj *var = fn->params; var; var = var->next) {
+      if (var->offset > 0) {
+        continue;
+      }
+
       // __va_area__
       if (var->ty->kind == TY_ARRAY) {
         int offset = var->offset - var->ty->size;
-        while (i < 8) {
+        while (gp < GP_MAX) {
           offset += 8;
-          store_gp(i++, offset, 8);
+          store_gp(gp++, offset, 8);
         }
       } else if (is_flonum(var->ty)) {
-        store_fp(i++, var->offset, var->ty->size);
+        if (fp < FP_MAX) {
+          store_fp(fp++, var->offset, var->ty->size);
+        } else {
+          store_gp(gp++, var->offset, var->ty->size);
+        }
       } else {
-        store_gp(i++, var->offset, var->ty->size);
+        store_gp(gp++, var->offset, var->ty->size);
       }
     }
 
