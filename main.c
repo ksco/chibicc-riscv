@@ -32,6 +32,9 @@ static void add_default_include_paths(char *argv0) {
   // We expect that chibicc-specific include files are installed
   // to ./include relative to argv[0].
   strarray_push(&include_paths, format("%s/include", dirname(strdup(argv0))));
+
+  // Add standard include paths.
+  strarray_push(&include_paths, "/opt/riscv/sysroot/usr/include");
 }
 
 static void parse_args(int argc, char **argv) {
