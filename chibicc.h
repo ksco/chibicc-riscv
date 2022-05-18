@@ -347,4 +347,5 @@ int align_to(int n, int align);
 //
 bool file_exists(char *path);
 
+extern StringArray include_paths;
 extern char *base_file;

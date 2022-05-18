@@ -14,7 +14,7 @@ chibicc: $(OBJS)
 $(OBJS): chibicc.h
 
 test/macro.exe: chibicc test/macro.c
-	./chibicc -o test/macro.o test/macro.c
+	./chibicc -Itest -o test/macro.o test/macro.c
 	$(RISCV_GCC) -static -o $@ test/macro.o -xc test/common
 
 test/%.exe: chibicc test/%.c
