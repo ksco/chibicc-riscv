@@ -286,6 +286,43 @@ static void cast(Type *from, Type *to) {
     println(cast_table[t1][t2]);
 }
 
+static bool has_flonum(Type *ty, int lo, int hi, int offset) {
+  if (ty->kind == TY_STRUCT || ty->kind == TY_UNION) {
+    for (Member *mem = ty->members; mem; mem = mem->next)
+      if (!has_flonum(mem->ty, lo, hi, offset + mem->offset))
+        return false;
+    return true;
+  }
+
+  if (ty->kind == TY_ARRAY) {
+    for (int i = 0; i < ty->array_len; i++)
+      if (!has_flonum(ty->base, lo, hi, offset + ty->base->size * i))
+        return false;
+    return true;
+  }
+
+  return offset < lo || hi <= offset || is_flonum(ty);
+}
+
+static bool has_flonum1(Type *ty) {
+  return has_flonum(ty, 0, 8, 0);
+}
+
+static bool has_flonum2(Type *ty) {
+  return has_flonum(ty, 8, 16, 0);
+}
+
+static void push_struct(Type *ty) {
+  int sz = align_to(ty->size, 8);
+  println("  addi sp,sp,%d", -sz);
+  depth += sz / 8;
+
+  for (int i = 0; i < ty->size; i++) {
+    println("  lb t3,%d(a0)", i);
+    println("  sb t3,%d(sp)", i);
+  }
+}
+
 static void push_args2(Node *args, bool first_pass) {
   if (!args)
     return;
@@ -296,17 +333,47 @@ static void push_args2(Node *args, bool first_pass) {
     return;
 
   gen_expr(args);
-  if (is_flonum(args->ty))
+  switch (args->ty->kind) {
+  case TY_STRUCT:
+  case TY_UNION:
+    push_struct(args->ty);
+    break;
+  case TY_FLOAT:
+  case TY_DOUBLE:
     pushf();
-  else
+    break;
+  default:
     push();
+  }
 }
 
 static int push_args(Node *args) {
   int stack = 0, gp = 0, fp = 0;
 
   for (Node *arg = args; arg; arg = arg->next) {
-    if (is_flonum(arg->ty)) {
+    Type *ty = arg->ty;
+
+    switch (ty->kind) {
+    case TY_STRUCT:
+    case TY_UNION:
+      if (ty->size > 16) {
+        arg->pass_by_stack = true;
+        stack += align_to(ty->size, 8) / 8;
+      } else {
+        bool fp1 = has_flonum1(ty);
+        bool fp2 = has_flonum2(ty);
+
+        if (fp + fp1 + fp2 < FP_MAX && gp + !fp1 + !fp2 < GP_MAX) {
+          fp = fp + fp1 + fp2;
+          gp = gp + !fp1 + !fp2;
+        } else {
+          arg->pass_by_stack = true;
+          stack += align_to(ty->size, 8) / 8;
+        }
+      }
+      break;
+    case TY_FLOAT:
+    case TY_DOUBLE:
       if (fp >= FP_MAX && gp > GP_MAX) {
         arg->pass_by_stack = true;
         stack++;
@@ -315,7 +382,8 @@ static int push_args(Node *args) {
       } else {
         gp++;
       }
-    } else {
+      break;
+    default:
       if (gp++ >= GP_MAX) {
         arg->pass_by_stack = true;
         stack++;
@@ -474,13 +542,40 @@ static void gen_expr(Node *node) {
         continue;
       }
       cur_param = cur_param->next;
-      if (is_flonum(arg->ty)) {
+      Type *ty = arg->ty;
+
+      switch (ty->kind) {
+      case TY_STRUCT:
+      case TY_UNION:
+        if (ty->size > 16)
+          continue;
+
+        bool fp1 = has_flonum1(ty);
+        bool fp2 = has_flonum2(ty);
+
+        if (fp + fp1 + fp2 < FP_MAX && gp + !fp1 + !fp2 < GP_MAX) {
+          if (fp1)
+            popf(fp++);
+          else
+            pop(gp++);
+
+          if (ty->size > 8) {
+            if (fp2)
+              popf(fp++);
+            else
+              pop(gp++);
+          }
+        }
+        break;
+      case TY_FLOAT:
+      case TY_DOUBLE:
         if (fp < FP_MAX) {
           popf(fp++);
         } else if (gp < GP_MAX) {
           pop(gp++);
         }
-      } else {
+        break;
+      default:
         if (gp < GP_MAX) pop(gp++);
       }
     }
@@ -843,6 +938,7 @@ static void store_gp(int r, int offset, int sz) {
     println("  sd a%d,0(t1)", r);
     return;
   }
+  printf("WTF %d\n", sz);
   unreachable();
 }
 
